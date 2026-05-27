@@ -1,7 +1,7 @@
 """
 Final Signal Scorer
 ───────────────────
-يجمع نتائج كل الطبقات في نقطة واحدة نهائية.
+يجمع نتائج كل الطبقات السبع في نقطة نهائية واحدة.
 """
 
 from __future__ import annotations
@@ -17,32 +17,36 @@ def calculate_score(
     news_result:   dict | None = None,
 ) -> dict:
     """
-    Weighted final score from all analysis layers.
+    Calculates weighted final score.
 
-    Weights (from config.py):
-        trend        20%
-        price_action 20%
-        smart_money  15%
-        ai           15%
-        momentum     10%
-        volume        8%
-        mtf           7%
-        news          5%
+    Returns
+    -------
+    dict:
+        final_score   float
+        approved      bool
+        grade         str
+        hard_blocks   list[str]
+        breakdown     dict
     """
-    W = SCORE_WEIGHTS
-    f = filter_result.get("filters", {})
+    W  = SCORE_WEIGHTS
+    f  = filter_result.get("filters", {})
 
-    # ── Individual scores ────────────────
-    trend_s  = 10.0 if f.get("Trend",      {}).get("passed") else 3.0
-    vol_s    = _vol_score(f.get("Volume",   {}).get("value", 1.0))
-    mom_s    = _rsi_score(f.get("RSI",      {}).get("value", 50))
-    ai_s     = ai_result.get("final_score", 5.0)
+    pa  = pa_result  or {}
+    smc = smc_result or {}
+    mtf = mtf_result or {}
+    nws = news_result or {}
 
-    pa_s     = (pa_result  or {}).get("score",  5.0)
-    smc_s    = (smc_result or {}).get("score",  5.0)
-    mtf_s    = (mtf_result or {}).get("score",  7.0)
-    news_s   = 10.0 if (news_result or {}).get("safe", True) else 2.0
+    # ── Individual Scores ────────────────
+    trend_s  = 10.0 if f.get("Trend",  {}).get("passed") else 3.0
+    vol_s    = _vol_score(f.get("Volume", {}).get("value"))
+    mom_s    = _rsi_score(f.get("RSI",   {}).get("value", 50))
+    ai_s     = float(ai_result.get("final_score", 5.0))
+    pa_s     = float(pa.get("score",  5.0))
+    smc_s    = float(smc.get("score", 5.0))
+    mtf_s    = float(mtf.get("score", 7.0))
+    news_s   = 10.0 if nws.get("safe", True) else 2.0
 
+    # ── Weighted Final ───────────────────
     final = (
         trend_s * W["trend"]        +
         pa_s    * W["price_action"] +
@@ -55,30 +59,27 @@ def calculate_score(
     )
     final = round(final, 2)
 
-    # ── Hard blocks (instant reject) ─────
+    # ── Hard Blocks (instant reject) ─────
     hard_blocks: list[str] = []
 
-    if not (news_result or {}).get("safe", True):
-        hard_blocks.append("High-impact news active 📰")
-
-    if (pa_result or {}).get("ranging"):
-        hard_blocks.append("Ranging market detected ↔️")
-
-    if not (mtf_result or {}).get("aligned", True):
+    if not nws.get("safe", True):
         hard_blocks.append(
-            f"MTF misaligned "
-            f"({(mtf_result or {}).get('alignment_pct', 0):.0f}%)"
+            f"📰 High-impact news: {nws.get('reason','')}"
         )
+    if pa.get("ranging", False):
+        hard_blocks.append("↔️ Ranging market detected")
 
-    rejected_by_block = len(hard_blocks) > 0
+    if not mtf.get("aligned", True):
+        pct = mtf.get("alignment_pct", 0)
+        hard_blocks.append(f"⏱️ MTF misaligned ({pct:.0f}%)")
 
-    approved = final >= MIN_SIGNAL_SCORE and not rejected_by_block
+    approved = (final >= MIN_SIGNAL_SCORE) and (len(hard_blocks) == 0)
 
     return {
-        "final_score":   final,
-        "approved":      approved,
-        "grade":         _grade(final),
-        "hard_blocks":   hard_blocks,
+        "final_score": final,
+        "approved":    approved,
+        "grade":       _grade(final),
+        "hard_blocks": hard_blocks,
         "breakdown": {
             "trend":        round(trend_s, 2),
             "price_action": round(pa_s,    2),
@@ -92,9 +93,7 @@ def calculate_score(
     }
 
 
-# ─────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────
+# ── Helpers ───────────────────────────────
 
 def _vol_score(vr: float | None) -> float:
     if vr is None: return 6.0
