@@ -485,3 +485,45 @@ for i in range(0, len(results), 3):
                     },
                 )
                 st.success(f"✅ Trade #{t_id}")
+                
+# أضف هذا في نهاية الصفحة
+
+st.markdown("---")
+
+with st.expander("🔧 Debug - اكتشف لماذا لا توجد نتائج"):
+    st.markdown("**فحص زوج واحد لمعرفة السبب الدقيق**")
+
+    dc1, dc2, dc3 = st.columns(3)
+    dbg_sym = dc1.selectbox(
+        "الزوج",
+        list(SUPPORTED_PAIRS.keys()),
+        key="dbg_sym",
+    )
+    dbg_tf = dc2.selectbox(
+        "الإطار",
+        ["15m", "1h", "4h"],
+        key="dbg_tf",
+    )
+    dbg_btn = dc3.button(
+        "🔍 فحص تفصيلي",
+        use_container_width=True,
+        key="dbg_btn",
+    )
+
+    if dbg_btn:
+        with st.spinner("جاري الفحص..."):
+            report = auto_scanner.scan_debug(dbg_sym, dbg_tf)
+
+        st.markdown(
+            f"**النتيجة:** `{report['result']}`"
+        )
+        for step in report["steps"]:
+            st.markdown(step)
+
+        if report["result"] == "APPROVED":
+            st.success("✅ هذا الإعداد يجب أن يظهر في النتائج!")
+        else:
+            st.error(
+                f"❌ رُفض عند: **{report['result']}**\n\n"
+                f"الحل: راجع الخطوة المرفوضة أعلاه"
+            )
