@@ -30,15 +30,28 @@ TRADING_START_HOUR = int(os.getenv("TRADING_START_HOUR", "7"))
 TRADING_END_HOUR   = int(os.getenv("TRADING_END_HOUR",   "20"))
 
 # ─────────────────────────────────────────
-# News Filter
+# News
 # ─────────────────────────────────────────
-NEWS_API_KEY        = os.getenv("NEWS_API_KEY", "")
-NEWS_BLOCK_MINUTES  = int(os.getenv("NEWS_BLOCK_MINUTES", "30"))
+NEWS_BLOCK_MINUTES = int(os.getenv("NEWS_BLOCK_MINUTES", "30"))
 
 # ─────────────────────────────────────────
 # Database
 # ─────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/trades.db")
+
+# ─────────────────────────────────────────
+# Score Weights  ← كان ناقصاً تماماً
+# ─────────────────────────────────────────
+SCORE_WEIGHTS = {
+    "trend":        0.20,
+    "price_action": 0.20,
+    "smart_money":  0.15,
+    "ai":           0.15,
+    "momentum":     0.10,
+    "volume":       0.08,
+    "mtf":          0.07,
+    "news":         0.05,
+}
 
 # ─────────────────────────────────────────
 # Supported Pairs
@@ -68,6 +81,18 @@ SUPPORTED_PAIRS = {
         "atr_normal": 1.20,
         "session": ["tokyo", "london"],
     },
+    "USD/CHF": {
+        "name": "US Dollar / Swiss Franc", "emoji": "🇨🇭",
+        "category": "forex", "pip": 0.0001,
+        "atr_normal": 0.0070,
+        "session": ["london", "newyork"],
+    },
+    "AUD/USD": {
+        "name": "Australian Dollar / US Dollar", "emoji": "🇦🇺",
+        "category": "forex", "pip": 0.0001,
+        "atr_normal": 0.0065,
+        "session": ["sydney", "tokyo"],
+    },
     "XAU/USD": {
         "name": "Gold / US Dollar", "emoji": "🥇",
         "category": "commodity", "pip": 0.01,
@@ -92,13 +117,23 @@ SUPPORTED_PAIRS = {
 # Timeframes
 # ─────────────────────────────────────────
 TIMEFRAME_MAP = {
-    "1m": "1min", "5m": "5min", "15m": "15min",
-    "30m": "30min", "1h": "1h", "4h": "4h", "1d": "1day",
+    "1m":  "1min",
+    "5m":  "5min",
+    "15m": "15min",
+    "30m": "30min",
+    "1h":  "1h",
+    "4h":  "4h",
+    "1d":  "1day",
 }
 
 TIMEFRAME_WEIGHTS = {
-    "1m": 0.30, "5m": 0.50, "15m": 0.70,
-    "30m": 0.80, "1h": 0.90, "4h": 1.00, "1d": 1.00,
+    "1m":  0.30,
+    "5m":  0.50,
+    "15m": 0.70,
+    "30m": 0.80,
+    "1h":  0.90,
+    "4h":  1.00,
+    "1d":  1.00,
 }
 
 # ─────────────────────────────────────────
@@ -109,18 +144,4 @@ SESSIONS = {
     "tokyo":   (0,  9),
     "london":  (7,  16),
     "newyork": (12, 21),
-}
-
-# ─────────────────────────────────────────
-# Score Weights
-# ─────────────────────────────────────────
-SCORE_WEIGHTS = {
-    "trend":       0.20,
-    "price_action":0.20,
-    "smart_money": 0.15,
-    "ai":          0.15,
-    "momentum":    0.10,
-    "volume":      0.08,
-    "mtf":         0.07,
-    "news":        0.05,
 }
