@@ -424,44 +424,83 @@ class AutoScanner:
 
 # ── Singleton ─────────────────────────────
 auto_scanner = AutoScanner()
-# أضف هذا في نهاية الصفحة
+# أضف هذه الدالة للـ AutoScanner class
+# لمعرفة سبب رفض كل إعداد
 
-st.markdown("---")
+def scan_debug(
+    self,
+    symbol:    str,
+    timeframe: str,
+) -> dict:
+    """
+    يفحص زوجاً واحداً ويشرح سبب القبول أو الرفض
+    """
+    report = {
+        "symbol":    symbol,
+        "timeframe": timeframe,
+        "steps":     [],
+        "result":    "UNKNOWN",
+    }
 
-with st.expander("🔧 Debug - اكتشف لماذا لا توجد نتائج"):
-    st.markdown("**فحص زوج واحد لمعرفة السبب الدقيق**")
-
-    dc1, dc2, dc3 = st.columns(3)
-    dbg_sym = dc1.selectbox(
-        "الزوج",
-        list(SUPPORTED_PAIRS.keys()),
-        key="dbg_sym",
-    )
-    dbg_tf = dc2.selectbox(
-        "الإطار",
-        ["15m", "1h", "4h"],
-        key="dbg_tf",
-    )
-    dbg_btn = dc3.button(
-        "🔍 فحص تفصيلي",
-        use_container_width=True,
-        key="dbg_btn",
-    )
-
-    if dbg_btn:
-        with st.spinner("جاري الفحص..."):
-            report = auto_scanner.scan_debug(dbg_sym, dbg_tf)
-
-        st.markdown(
-            f"**النتيجة:** `{report['result']}`"
+    def log(step: str, status: str, detail: str = ""):
+        icon = "✅" if status == "pass" else "❌" if status == "fail" else "ℹ️"
+        report["steps"].append(
+            f"{icon} {step}: {detail}"
         )
-        for step in report["steps"]:
-            st.markdown(step)
 
-        if report["result"] == "APPROVED":
-            st.success("✅ هذا الإعداد يجب أن يظهر في النتائج!")
-        else:
-            st.error(
-                f"❌ رُفض عند: **{report['result']}**\n\n"
-                f"الحل: راجع الخطوة المرفوضة أعلاه"
-            )
+    # 1. Data
+    df = data_fetcher.get_ohlcv(symbol, timeframe, limit=200)
+    if df is None:
+        log("Data", "fail", "Cannot fetch from TwelveData")
+        report["result"] = "NO_DATA"
+        return report
+    log("Data", "pass", f"{len(df)} candles")
+
+    ind = data_fetcher.get_indicators(df)
+    if not ind:
+        log("Indicators", "fail", "Cannot calculate")
+        report["result"] = "NO_INDICATORS"
+        return report
+
+    price = float(ind.get("current_price", 0))
+    log("Indicators", "pass",
+        f"Price:{price:.5f} RSI:{ind.get('rsi',0):.1f} "
+        f"Stoch:{ind.get('stoch_k',0):.1f}")
+
+    # 2. Direction
+    side = self._detect_direction(df, ind)
+    log("Direction", "info", side)
+
+    # 3. News
+    news = check_news_risk(symbol)
+    if not news["safe"]:
+        log("News", "fail", news["reason"])
+        report["result"] = "NEWS_BLOCKED"
+        return report
+    log("News", "pass", "Clear")
+
+    # 4. Entry
+    entry = entry_engine.analyze(df, side, symbol)
+    if entry["entry_type"] == "WAIT":
+        log("Entry", "fail", entry["reason"])
+        report["result"] = "NO_ENTRY_SETUP"
+        return report
+    log("Entry", "pass",
+        f"{entry['entry_type']} @ {entry['entry_price']:.5f} "
+        f"R:R={entry['rr_ratio']}")
+
+    # 5. R:R
+    if entry["rr_ratio"] < 1.0:
+        log("R:R", "fail", f"{entry['rr_ratio']} < 1.0")
+        report["result"] = "LOW_RR"
+        return report
+    log("R:R", "pass", str(entry["rr_ratio"]))
+
+    # 6. Confidence
+    log("Confidence", "pass" if entry["confidence"] >= 35 else "fail",
+        f"{entry['confidence']:.0f}%")
+
+    report["result"] = "APPROVED"
+    report["entry"]  = entry
+    report["side"]   = side
+    return report
